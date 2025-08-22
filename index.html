@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sentiment Analyzer</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .input-section {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #555;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            resize: vertical;
+            box-sizing: border-box;
+        }
+
+        textarea:focus {
+            border-color: #4CAF50;
+            outline: none;
+        }
+
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+
+        .result-section {
+            margin-top: 30px;
+            padding: 20px;
+            border-radius: 5px;
+            display: none;
+        }
+
+        .result-positive {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+
+        .result-negative {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+
+        .result-neutral {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+        }
+
+        .sentiment-emoji {
+            font-size: 24px;
+            margin-right: 10px;
+        }
+
+        .confidence-bar {
+            background-color: #e0e0e0;
+            border-radius: 10px;
+            height: 20px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+
+        .confidence-fill {
+            height: 100%;
+            border-radius: 10px;
+            transition: width 0.3s ease;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            color: #666;
+            margin-top: 10px;
+        }
+
+        .error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            display: none;
+        }
+
+        .examples {
+            margin-top: 20px;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .example-text {
+            background-color: #f8f9fa;
+            padding: 5px 10px;
+            border-radius: 3px;
+            margin: 5px 0;
+            cursor: pointer;
+            display: inline-block;
+        }
+
+        .example-text:hover {
+            background-color: #e9ecef;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎭 Sentiment Analyzer</h1>
+
+        <div class="input-section">
+            <label for="textInput">Enter text to analyze:</label>
+            <textarea
+                id="textInput"
+                rows="4"
+                placeholder="Type something here... For example: 'I love sunny days!' or 'This traffic is awful.'"
+            ></textarea>
+        </div>
+
+        <button id="analyzeBtn" onclick="analyzeSentiment()">
+            Analyze Sentiment
+        </button>
+
+        <div class="loading" id="loading">
+            Analyzing... 🤔
+        </div>
+
+        <div class="error" id="error"></div>
+
+        <div class="result-section" id="resultSection">
+            <h3>
+                <span class="sentiment-emoji" id="sentimentEmoji"></span>
+                <span id="sentimentText"></span>
+            </h3>
+            <p><strong>Your text:</strong> "<span id="analyzedText"></span>"</p>
+            <p><strong>Confidence:</strong> <span id="confidenceText"></span></p>
+            <div class="confidence-bar">
+                <div class="confidence-fill" id="confidenceFill"></div>
+            </div>
+        </div>
+
+        <div class="examples">
+            <p><strong>Try these examples:</strong></p>
+            <span class="example-text" onclick="setExample('I absolutely love this new restaurant!')">
+                "I absolutely love this new restaurant!"
+            </span>
+            <span class="example-text" onclick="setExample('The weather is okay today.')">
+                "The weather is okay today."
+            </span>
+            <span class="example-text" onclick="setExample('This movie was terrible and boring.')">
+                "This movie was terrible and boring."
+            </span>
+        </div>
+    </div>
+
+    <script>
+        // API endpoint - make sure this matches your backend URL
+        const API_URL = 'http://localhost:8000';
+
+        // Function to set example text
+        function setExample(text) {
+            document.getElementById('textInput').value = text;
+        }
+
+        // Main function to analyze sentiment
+        async function analyzeSentiment() {
+            const textInput = document.getElementById('textInput');
+            const analyzeBtn = document.getElementById('analyzeBtn');
+            const loading = document.getElementById('loading');
+            const error = document.getElementById('error');
+            const resultSection = document.getElementById('resultSection');
+
+            // Get the text to analyze
+            const text = textInput.value.trim();
+
+            // Validate input
+            if (!text) {
+                showError('Please enter some text to analyze!');
+                return;
+            }
+
+            // Show loading state
+            analyzeBtn.disabled = true;
+            loading.style.display = 'block';
+            error.style.display = 'none';
+            resultSection.style.display = 'none';
+
+            try {
+                // Make API call
+                const response = await fetch(`${API_URL}/analyze`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ text: text })
+                });
+
+                // Check if response is ok
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || 'Failed to analyze sentiment');
+                }
+
+                // Parse response
+                const result = await response.json();
+
+                // Display results
+                displayResult(result);
+
+            } catch (err) {
+                console.error('Error:', err);
+                showError('Failed to analyze sentiment. Make sure the backend server is running!');
+            } finally {
+                // Reset UI state
+                analyzeBtn.disabled = false;
+                loading.style.display = 'none';
+            }
+        }
+
+        // Function to display the sentiment analysis result
+        function displayResult(result) {
+            const resultSection = document.getElementById('resultSection');
+            const sentimentEmoji = document.getElementById('sentimentEmoji');
+            const sentimentText = document.getElementById('sentimentText');
+            const analyzedText = document.getElementById('analyzedText');
+            const confidenceText = document.getElementById('confidenceText');
+            const confidenceFill = document.getElementById('confidenceFill');
+
+            // Set emoji and color based on sentiment
+            const sentimentConfig = {
+                positive: { emoji: '😊', color: '#28a745' },
+                negative: { emoji: '😞', color: '#dc3545' },
+                neutral: { emoji: '😐', color: '#ffc107' }
+            };
+
+            const config = sentimentConfig[result.sentiment] || sentimentConfig.neutral;
+
+            // Update result display
+            sentimentEmoji.textContent = config.emoji;
+            sentimentText.textContent = `Sentiment: ${result.sentiment.charAt(0).toUpperCase() + result.sentiment.slice(1)}`;
+            analyzedText.textContent = result.text;
+            confidenceText.textContent = `${(result.confidence * 100).toFixed(1)}%`;
+
+            // Update confidence bar
+            confidenceFill.style.width = `${result.confidence * 100}%`;
+            confidenceFill.style.backgroundColor = config.color;
+
+            // Set result section class for styling
+            resultSection.className = `result-section result-${result.sentiment}`;
+            resultSection.style.display = 'block';
+        }
+
+        // Function to show error messages
+        function showError(message) {
+            const error = document.getElementById('error');
+            error.textContent = message;
+            error.style.display = 'block';
+        }
+
+        // Allow Enter key to trigger analysis
+        document.getElementById('textInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                analyzeSentiment();
+            }
+        });
+
+        // Test connection on page load
+        window.addEventListener('load', async function() {
+            try {
+                const response = await fetch(`${API_URL}/`);
+                if (response.ok) {
+                    console.log('✅ Backend connection successful!');
+                } else {
+                    console.warn('⚠️ Backend may not be running');
+                }
+            } catch (err) {
+                console.warn('⚠️ Cannot connect to backend. Make sure it\'s running on http://localhost:8000');
+            }
+        });
+    </script>
+</body>
+</html>
